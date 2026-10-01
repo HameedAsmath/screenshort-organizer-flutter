@@ -9,14 +9,21 @@ import 'package:onnxruntime/onnxruntime.dart';
 import 'clip_tokenizer.dart';
 
 class EmbeddingService {
-  static const int EMBEDDING_DIM = 512;
   static late OrtSession _imageSession;
   static late OrtSession _textSession;
   static late ClipTokenizer _tokenizer;
   static bool _initialized = false;
+  static Future<void>? _initFuture;
+
+  /// Loads the models once. If it's already loading, callers wait for the
+  /// same job instead of starting a second one.
+  static Future<void> initialize() {
+    _initFuture ??= _loadModels();
+    return _initFuture!;
+  }
 
   /// Initialize ORT sessions
-  static Future<void> initialize() async {
+  static Future<void> _loadModels() async {
     if (_initialized) return;
 
     try {
@@ -51,6 +58,7 @@ class EmbeddingService {
       _initialized = true;
     } catch (e) {
       print('❌ Error loading models: $e');
+      _initFuture = null;
       rethrow;
     }
   }
@@ -101,7 +109,7 @@ class EmbeddingService {
       return embedding;
     } catch (e) {
       print('Error generating image embedding: $e');
-      return List<double>.filled(EMBEDDING_DIM, 0.0);
+      return [];
     }
   }
 
@@ -122,7 +130,7 @@ class EmbeddingService {
       return embedding;
     } catch (e) {
       print('Error generating text embedding: $e');
-      return List<double>.filled(EMBEDDING_DIM, 0.0);
+      return [];
     }
   }
 
