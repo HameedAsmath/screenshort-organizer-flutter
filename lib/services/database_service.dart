@@ -120,7 +120,8 @@ class DatabaseService {
 
   Future<List<Map<String, dynamic>>> searchByEmbedding(
     List<double> queryEmbedding, {
-    int topK = 5,
+    int topK = 20,
+    double minScore = 0.25,
   }) async {
     if (queryEmbedding.isEmpty) return [];
 
@@ -144,8 +145,17 @@ class DatabaseService {
       results.add((screenshot, similarity));
     }
 
-    results.sort((a, b) => b.$2.compareTo(a.$2));
-    return results.take(topK).map((r) => r.$1).toList();
+    final top = results.take(topK);
+
+    for (final r in top) {
+      final hidden = r.$2 < minScore ? '  (hidden)' : '';
+      print('   ${r.$2.toStringAsFixed(3)}  ${r.$1['name']}$hidden');
+    }
+
+    return top
+        .where((r) => r.$2 >= minScore)
+        .map((r) => <String, dynamic>{...r.$1, 'score': r.$2})
+        .toList();
   }
 
   Future<int> deleteScreenshot(int id) async {

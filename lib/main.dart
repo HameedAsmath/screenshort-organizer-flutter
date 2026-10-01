@@ -8,20 +8,29 @@ import 'services/photo_service.dart';
 
 import 'services/embedding_service.dart';
 
+import 'dart:async';
+
+import 'services/gallery_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await EmbeddingService.initialize();
   runApp(const ProviderScope(child: MyApp()));
 }
 
 final screenshotsProvider = StateProvider<List<Map>>((ref) => []);
 final searchQueryProvider = StateProvider<String>((ref) => '');
+Timer? _searchDebounce;
 
 final dbInitProvider = FutureProvider<void>((ref) async {
   final db = DatabaseService();
+
+  // 1. Show saved screenshots immediately (SQLite is fast)
+  ref.read(screenshotsProvider.notifier).state = await db.getAllScreenshots();
+
+  // 2. Then load the models and fill in any missing embeddings
+  await EmbeddingService.initialize();
   await db.reindexMissingEmbeddings();
-  final screenshots = await db.getAllScreenshots();
-  ref.read(screenshotsProvider.notifier).state = screenshots;
+  ref.read(screenshotsProvider.notifier).state = await db.getAllScreenshots();
 });
 
 final searchResultsProvider = FutureProvider<List<Map>>((ref) async {
@@ -30,8 +39,11 @@ final searchResultsProvider = FutureProvider<List<Map>>((ref) async {
 
   print('Searching for: "$query"');
   final textEmbedding = await EmbeddingService.generateTextEmbedding(query);
+  if (textEmbedding.isEmpty) {
+    throw Exception('Could not process search text');
+  }
   final db = DatabaseService();
-  final results = await db.searchByEmbedding(textEmbedding, topK: 5);
+  final results = await db.searchByEmbedding(textEmbedding);
 
   print('Found ${results.length} results');
   return results;
@@ -58,7 +70,7 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(dbInitProvider);
+    final init = ref.watch(dbInitProvider);
     final screenshots = ref.watch(screenshotsProvider);
     final searchQuery = ref.watch(searchQueryProvider);
     final searchResults = ref.watch(searchResultsProvider);
@@ -71,6 +83,17 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Screenshot Organizer'),
+        actions: [
+          if (init.isLoading)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
@@ -86,13 +109,18 @@ class HomeScreen extends ConsumerWidget {
                 fillColor: Colors.white,
               ),
               onChanged: (value) {
-                ref.read(searchQueryProvider.notifier).state = value;
+                _searchDebounce?.cancel();
+                _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+                  ref.read(searchQueryProvider.notifier).state = value.trim();
+                });
               },
             ),
           ),
         ),
       ),
-      body: displayList.isEmpty
+      body: searchQuery.isNotEmpty && searchResults.hasError
+          ? const Center(child: Text('Search failed. Please try again.'))
+          : displayList.isEmpty
           ? Center(
               child: Text(
                 searchQuery.isEmpty
@@ -117,7 +145,9 @@ class HomeScreen extends ConsumerWidget {
                         : const Icon(Icons.image),
                     title: Text(screenshot['name'] as String),
                     subtitle: Text(
-                      '${screenshot['collection'] as String} • ${screenshot['createdAt'] as String}',
+                      screenshot['score'] != null
+                          ? 'score: ${(screenshot['score'] as double).toStringAsFixed(3)}'
+                          : '${screenshot['collection'] as String} • ${screenshot['createdAt'] as String}',
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete),
@@ -156,16 +186,22 @@ class HomeScreen extends ConsumerWidget {
               );
               print('Embedding generated (dim: ${embedding.length})');
 
-              // Save with embedding
-              await db.insertScreenshotWithEmbedding({
+              final row = <String, dynamic>{
                 'name': file.path.split('/').last,
                 'collection': 'Uncategorized',
                 'tags': '[]',
                 'imagePath': file.path,
                 'createdAt': DateTime.now().toString().split(' ')[0],
-              }, embedding);
+              };
 
-              print('✅ Saved with embedding');
+              if (embedding.isEmpty) {
+                // Save the photo anyway; reindexMissingEmbeddings() retries it on next launch.
+                await db.insertScreenshot(row);
+                print('⚠️ Saved without embedding, will retry on next launch');
+              } else {
+                await db.insertScreenshotWithEmbedding(row, embedding);
+                print('✅ Saved with embedding');
+              }
             }
 
             // Reload
