@@ -22,6 +22,7 @@ final searchQueryProvider = StateProvider<String>((ref) => '');
 
 final dbInitProvider = FutureProvider<void>((ref) async {
   final db = DatabaseService();
+  await db.reindexMissingEmbeddings();
   final screenshots = await db.getAllScreenshots();
   ref.read(screenshotsProvider.notifier).state = screenshots;
 });
