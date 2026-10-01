@@ -8,11 +8,8 @@ import 'services/photo_service.dart';
 
 import 'services/embedding_service.dart';
 
-import 'package:ort/ort.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Ort.ensureInitialized();
   await EmbeddingService.initialize();
   runApp(const ProviderScope(child: MyApp()));
 }
