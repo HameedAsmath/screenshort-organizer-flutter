@@ -65,6 +65,8 @@ flutter:
   assets:
     - assets/clip_image.onnx
     - assets/clip_text.onnx
+    - assets/clip_vocab.json
+    - assets/clip_merges.txt
 
   # To add assets to your application, add an assets section, like this:
   # assets:
