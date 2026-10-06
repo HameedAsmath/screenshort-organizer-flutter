@@ -15,16 +15,39 @@ class GalleryService {
     return state.hasAccess;
   }
 
-  /// Temporary: prints every photo album and how many photos it has.
-  static Future<void> debugListAlbums() async {
-    if (!await requestPermission()) {
-      print('❌ No gallery permission');
-      return;
+  /// Finds the album whose name contains "screenshot" (any case).
+  static Future<AssetPathEntity?> findScreenshotsAlbum() async {
+    if (!await requestPermission()) return null;
+
+    final albums = await PhotoManager.getAssetPathList(
+      type: RequestType.image,
+      filterOption: FilterOptionGroup(
+        orders: [
+          const OrderOption(type: OrderOptionType.createDate, asc: false),
+        ],
+      ),
+    );
+
+    for (final album in albums) {
+      if (album.name.toLowerCase().contains('screenshot')) {
+        return album;
+      }
+    }
+    return null;
+  }
+
+  /// Returns every screenshot on the phone, newest first.
+  static Future<List<AssetEntity>> getAllScreenshots() async {
+    final album = await findScreenshotsAlbum();
+    if (album == null) {
+      print('❌ Screenshots album not found');
+      return [];
     }
 
-    final albums = await PhotoManager.getAssetPathList(type: RequestType.image);
-    for (final album in albums) {
-      print('📁 ${album.name}: ${await album.assetCountAsync} photos');
-    }
+    final count = await album.assetCountAsync;
+    final assets = await album.getAssetListRange(start: 0, end: count);
+    print('📸 Found ${assets.length} screenshots');
+
+    return assets;
   }
 }

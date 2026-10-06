@@ -10,7 +10,9 @@ import 'services/embedding_service.dart';
 
 import 'dart:async';
 
-import 'services/gallery_service.dart';
+import 'services/screenshot_importer.dart';
+
+import 'services/debug_tools.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,18 +21,35 @@ void main() async {
 
 final screenshotsProvider = StateProvider<List<Map>>((ref) => []);
 final searchQueryProvider = StateProvider<String>((ref) => '');
+final importProgressProvider = StateProvider<(int, int)?>((ref) => null);
+
 Timer? _searchDebounce;
 
 final dbInitProvider = FutureProvider<void>((ref) async {
   final db = DatabaseService();
 
-  // 1. Show saved screenshots immediately (SQLite is fast)
+  // 1. Show saved screenshots immediately
   ref.read(screenshotsProvider.notifier).state = await db.getAllScreenshots();
 
-  // 2. Then load the models and fill in any missing embeddings
+  // 2. Load models and retry any screenshots missing an embedding
   await EmbeddingService.initialize();
   await db.reindexMissingEmbeddings();
+
+  // 3. Import new screenshots from the gallery
+  await ScreenshotImporter.importNew(
+    onProgress: (done, total) async {
+      ref.read(importProgressProvider.notifier).state = (done, total);
+      // Refresh the list every 10 screenshots so new ones appear as we go
+      if (done % 10 == 0 || done == total) {
+        ref.read(screenshotsProvider.notifier).state = await db
+            .getAllScreenshots();
+      }
+    },
+  );
+
+  ref.read(importProgressProvider.notifier).state = null;
   ref.read(screenshotsProvider.notifier).state = await db.getAllScreenshots();
+  await DebugTools.abTestLatest('juice'); // TEMPORARY: diagnostics
 });
 
 final searchResultsProvider = FutureProvider<List<Map>>((ref) async {
@@ -71,6 +90,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final init = ref.watch(dbInitProvider);
+    final progress = ref.watch(importProgressProvider);
     final screenshots = ref.watch(screenshotsProvider);
     final searchQuery = ref.watch(searchQueryProvider);
     final searchResults = ref.watch(searchResultsProvider);
@@ -84,6 +104,10 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Screenshot Organizer'),
         actions: [
+          if (progress != null)
+            Center(
+              child: Text('${progress.$1} / ${progress.$2}'),
+            ), // progress.$1 is "done" and progress.$2 is "total"
           if (init.isLoading)
             const Padding(
               padding: EdgeInsets.all(16),
