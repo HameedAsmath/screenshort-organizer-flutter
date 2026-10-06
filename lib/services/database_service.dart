@@ -25,7 +25,7 @@ class DatabaseService {
 
       return await openDatabase(
         path,
-        version: 4,
+        version: 5,
         onCreate: _createTables,
         onUpgrade: _onUpgrade,
       );
@@ -44,9 +44,13 @@ class DatabaseService {
       tags TEXT,
       imagePath TEXT,
       createdAt TEXT,
-      embedding TEXT
+      embedding TEXT,
+      assetId TEXT
     )
-  '''); // ← ADDED embedding TEXT
+  ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_screenshots_assetId ON screenshots(assetId)',
+    );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -72,6 +76,13 @@ class DatabaseService {
       // reindexMissingEmbeddings().
       await db.execute('UPDATE screenshots SET embedding = NULL');
     }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE screenshots ADD COLUMN assetId TEXT');
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_screenshots_assetId ON screenshots(assetId)',
+      );
+      print('🗄️ Database upgraded to v5 (added assetId)');
+    }
   }
 
   Future<int> insertScreenshot(Map<String, dynamic> screenshot) async {
@@ -81,7 +92,30 @@ class DatabaseService {
 
   Future<List<Map<String, dynamic>>> getAllScreenshots() async {
     final db = await getDatabase();
-    return await db.query('screenshots');
+    // Skip the big 'embedding' column; the list screen doesn't need it.
+    return await db.query(
+      'screenshots',
+      columns: [
+        'id',
+        'name',
+        'collection',
+        'tags',
+        'imagePath',
+        'createdAt',
+        'assetId',
+      ],
+    );
+  }
+
+  /// Gallery IDs of screenshots we've already saved.
+  Future<Set<String>> getIndexedAssetIds() async {
+    final db = await getDatabase();
+    final rows = await db.query(
+      'screenshots',
+      columns: ['assetId'],
+      where: 'assetId IS NOT NULL',
+    );
+    return rows.map((r) => r['assetId'] as String).toSet();
   }
 
   Future<int> insertScreenshotWithEmbedding(
@@ -121,7 +155,7 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> searchByEmbedding(
     List<double> queryEmbedding, {
     int topK = 20,
-    double minScore = 0.25,
+    double minScore = 0.24,
   }) async {
     if (queryEmbedding.isEmpty) return [];
 
@@ -144,7 +178,8 @@ class DatabaseService {
       );
       results.add((screenshot, similarity));
     }
-
+    // Best matches first
+    results.sort((a, b) => b.$2.compareTo(a.$2));
     final top = results.take(topK);
 
     for (final r in top) {

@@ -8,6 +8,8 @@ import 'package:onnxruntime/onnxruntime.dart';
 
 import 'clip_tokenizer.dart';
 
+import 'dart:isolate';
+
 class EmbeddingService {
   static late OrtSession _imageSession;
   static late OrtSession _textSession;
@@ -64,39 +66,16 @@ class EmbeddingService {
   }
 
   /// Generate embedding from image file
-  static Future<List<double>> generateImageEmbedding(String imagePath) async {
+  static Future<List<double>> generateImageEmbedding(
+    String imagePath, {
+    bool background = true,
+  }) async {
     try {
       if (!_initialized) await initialize();
 
-      final file = File(imagePath);
-      final imageBytes = await file.readAsBytes();
-      final image = img.decodeImage(imageBytes);
-
-      if (image == null) throw Exception('Failed to decode image');
-
-      // Resize so the SHORT side is 224 (keeps the shape, no squashing)
-      final resized = image.width < image.height
-          ? img.copyResize(
-              image,
-              width: 224,
-              interpolation: img.Interpolation.cubic,
-            )
-          : img.copyResize(
-              image,
-              height: 224,
-              interpolation: img.Interpolation.cubic,
-            );
-
-      // Cut out the center 224x224 square
-      final cropped = img.copyCrop(
-        resized,
-        x: (resized.width - 224) ~/ 2,
-        y: (resized.height - 224) ~/ 2,
-        width: 224,
-        height: 224,
-      );
-
-      final normalized = _normalizeImage(cropped);
+      final normalized = background
+          ? await Isolate.run(() => _preprocessImage(imagePath))
+          : _preprocessImage(imagePath);
 
       final inputTensor = OrtValueTensor.createTensorWithDataList(normalized, [
         1,
@@ -104,7 +83,12 @@ class EmbeddingService {
         224,
         224,
       ]);
-      final embedding = _run(_imageSession, 'pixel_values', inputTensor);
+      final embedding = await _run(
+        _imageSession,
+        'pixel_values',
+        inputTensor,
+        background: background,
+      );
       print('✅ Image embedding generated (dim: ${embedding.length})');
       return embedding;
     } catch (e) {
@@ -125,7 +109,7 @@ class EmbeddingService {
         Int64List.fromList(ids),
         [1, 77],
       );
-      final embedding = _run(_textSession, 'input_ids', inputTensor);
+      final embedding = await _run(_textSession, 'input_ids', inputTensor);
       print('✅ Text embedding generated for: "$text"');
       return embedding;
     } catch (e) {
@@ -135,13 +119,19 @@ class EmbeddingService {
   }
 
   /// Runs [session] with one input and returns the first output as a flat list.
-  static List<double> _run(
+  /// [background]: run the model in a separate isolate so the UI stays smooth.
+  /// Only use it when runs on this session never overlap.
+  static Future<List<double>> _run(
     OrtSession session,
     String inputName,
-    OrtValueTensor input,
-  ) {
+    OrtValueTensor input, {
+    bool background = false,
+  }) async {
     final runOptions = OrtRunOptions();
-    final outputs = session.run(runOptions, {inputName: input});
+    final outputs = background
+        ? (await session.runAsync(runOptions, {inputName: input}))!
+        : session.run(runOptions, {inputName: input});
+
     // Output shape is [1, 512], so take the first (and only) row.
     final result = List<double>.from((outputs[0]!.value as List)[0]);
 
@@ -166,6 +156,38 @@ class EmbeddingService {
     normB = sqrt(normB);
     if (normA == 0.0 || normB == 0.0) return 0.0;
     return dot / (normA * normB);
+  }
+
+  /// Reads, decodes, resizes, crops and normalizes an image.
+  /// Runs inside a background isolate, so it must only use its arguments.
+  static Float32List _preprocessImage(String imagePath) {
+    final imageBytes = File(imagePath).readAsBytesSync();
+    final image = img.decodeImage(imageBytes);
+    if (image == null) throw Exception('Failed to decode image');
+
+    // Resize so the SHORT side is 224 (keeps the shape, no squashing)
+    final resized = image.width < image.height
+        ? img.copyResize(
+            image,
+            width: 224,
+            interpolation: img.Interpolation.cubic,
+          )
+        : img.copyResize(
+            image,
+            height: 224,
+            interpolation: img.Interpolation.cubic,
+          );
+
+    // Cut out the center 224x224 square
+    final cropped = img.copyCrop(
+      resized,
+      x: (resized.width - 224) ~/ 2,
+      y: (resized.height - 224) ~/ 2,
+      width: 224,
+      height: 224,
+    );
+
+    return _normalizeImage(cropped);
   }
 
   /// Converts the image to CLIP's input format: CHW order, normalized
