@@ -8,7 +8,6 @@ import '../providers.dart';
 import '../services/database_service.dart';
 import '../services/embedding_service.dart';
 import '../services/photo_service.dart';
-import 'indexing_overlay.dart';
 import 'screenshot_actions.dart';
 import 'screenshot_detail_screen.dart';
 import 'screenshot_tile.dart';
@@ -119,7 +118,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final init = ref.watch(dbInitProvider);
-    final progress = ref.watch(importProgressProvider);
     final screenshots = ref.watch(screenshotsProvider);
     final searchQuery = ref.watch(searchQueryProvider);
     final searchResults = ref.watch(searchResultsProvider);
@@ -131,92 +129,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? (searchResults.value ?? const [])
         : screenshots;
 
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(
-            toolbarHeight: 64,
-            title: Text(
-              'Screenshots',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(64),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: _SearchField(
-                  controller: _searchController,
-                  enabled: !isIndexing,
-                  onChanged: _onSearchChanged,
-                  onClear: _clearSearch,
-                ),
-              ),
-            ),
-          ),
-          body: Column(
-            children: [
-              _ResultHeader(
-                count: displayList.length,
-                query: isSearching ? searchQuery : null,
-                indexError: init.hasError,
-              ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  child: _buildContent(
-                    displayList: displayList,
-                    isSearching: isSearching,
-                    isSearchLoading: isSearchLoading,
-                    searchFailed: isSearching && searchResults.hasError,
-                    searchQuery: searchQuery,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          floatingActionButton: isIndexing
-              ? null
-              : FloatingActionButton(
-                  tooltip: 'Add photos',
-                  onPressed: _importing ? null : _importFromPicker,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _importing
-                        ? const SizedBox(
-                            key: ValueKey('busy'),
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              strokeCap: StrokeCap.round,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.add_photo_alternate_outlined,
-                            key: ValueKey('add'),
-                          ),
-                  ),
-                ),
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: 64,
+        title: Text(
+          'Screenshots',
+          style: Theme.of(context).textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
-        // Blurred, blocking overlay while models load / screenshots index.
-        Positioned.fill(
-          child: IgnorePointer(
-            ignoring: !isIndexing,
-            child: AnimatedOpacity(
-              opacity: isIndexing ? 1 : 0,
-              duration: const Duration(milliseconds: 350),
-              curve: Curves.easeOut,
-              child: isIndexing
-                  ? IndexingOverlay(progress: progress)
-                  : const SizedBox.shrink(),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(64),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: _SearchField(
+              controller: _searchController,
+              enabled: !isIndexing,
+              onChanged: _onSearchChanged,
+              onClear: _clearSearch,
             ),
           ),
         ),
-      ],
+      ),
+      body: Column(
+        children: [
+          _ResultHeader(
+            count: displayList.length,
+            query: isSearching ? searchQuery : null,
+            indexError: init.hasError,
+          ),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              child: _buildContent(
+                displayList: displayList,
+                isSearching: isSearching,
+                isSearchLoading: isSearchLoading,
+                searchFailed: isSearching && searchResults.hasError,
+                searchQuery: searchQuery,
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: isIndexing
+          ? null
+          : FloatingActionButton(
+              tooltip: 'Add photos',
+              onPressed: _importing ? null : _importFromPicker,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _importing
+                    ? const SizedBox(
+                        key: ValueKey('busy'),
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          strokeCap: StrokeCap.round,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.add_photo_alternate_outlined,
+                        key: ValueKey('add'),
+                      ),
+              ),
+            ),
     );
   }
 
@@ -244,15 +223,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               key: ValueKey('no-matches'),
               icon: Icons.search_off_rounded,
               title: 'No matches',
-              message:
-                  'Try describing what\'s in the screenshot, like "receipt", "chat" or "qr code".',
+              message: 'Try describing what\'s in the screenshot, like "receipt", "chat" or "qr code".',
             )
           : const _EmptyState(
               key: ValueKey('empty'),
               icon: Icons.photo_library_outlined,
               title: 'No screenshots yet',
-              message:
-                  'Screenshots you take will show up here. You can also tap + to add photos.',
+              message: 'Screenshots you take will show up here. You can also tap + to add photos.',
             );
     }
 
