@@ -152,6 +152,25 @@ class DatabaseService {
     if (rows.isNotEmpty) print('Reindexed ${rows.length} screenshots');
   }
 
+  /// Used for clustering screenshots into pools.
+  Future<List<(int, String, List<double>)>> getAllEmbeddings() async {
+    final db = await getDatabase();
+    final rows = await db.query(
+      'screenshots',
+      columns: ['id', 'name', 'embedding'],
+      where: "embedding IS NOT NULL AND embedding != ''",
+    );
+
+    return [
+      for (final row in rows)
+        (
+          row['id'] as int,
+          row['name'] as String,
+          (row['embedding'] as String).split(',').map(double.parse).toList(),
+        ),
+    ];
+  }
+
   Future<List<Map<String, dynamic>>> searchByEmbedding(
     List<double> queryEmbedding, {
     int topK = 20,

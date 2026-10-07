@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'services/database_service.dart';
-import 'services/debug_tools.dart';
 import 'services/embedding_service.dart';
 import 'services/screenshot_importer.dart';
+
+import 'services/pool_service.dart';
+import 'services/vector_math.dart';
 
 final screenshotsProvider = StateProvider<List<Map>>((ref) => []);
 final searchQueryProvider = StateProvider<String>((ref) => '');
@@ -33,7 +35,6 @@ final dbInitProvider = FutureProvider<void>((ref) async {
 
   ref.read(importProgressProvider.notifier).state = null;
   ref.read(screenshotsProvider.notifier).state = await db.getAllScreenshots();
-  await DebugTools.abTestLatest('juice'); // TEMPORARY: diagnostics
 });
 
 final searchResultsProvider = FutureProvider<List<Map>>((ref) async {
@@ -50,4 +51,36 @@ final searchResultsProvider = FutureProvider<List<Map>>((ref) async {
 
   print('Found ${results.length} results');
   return results;
+});
+
+/// Personal pools, computed once the startup work (embeddings, import) is done.
+final poolsProvider = FutureProvider<List<Pool>>((ref) async {
+  // Wait for dbInitProvider to finish before clustering
+  await ref.watch(dbInitProvider.future);
+
+  final all = await DatabaseService().getAllEmbeddings();
+  final ids = [for (final e in all) e.$1];
+  final vectors = [for (final e in all) VectorMath.normalize(e.$3)];
+
+  final sw = Stopwatch()..start();
+  final k = PoolService.chooseK(vectors.length);
+  final result = await PoolService.kMeansInBackground(vectors, k);
+  final pools = PoolService.buildPools(ids, vectors, result);
+  print(
+    '🧩 ${pools.length} pools ready in ${sw.elapsedMilliseconds} ms (k=$k)',
+  );
+
+  // TEMPORARY: list them so we can check the result
+  final nameById = {for (final e in all) e.$1: e.$2};
+  for (final p in pools) {
+    final examples = p.memberIds
+        .take(3)
+        .map((id) => nameById[id])
+        .join('  ·  ');
+    print(
+      '🧩 ${p.name.padRight(8)} ${p.size.toString().padLeft(3)} │ $examples',
+    );
+  }
+
+  return pools;
 });

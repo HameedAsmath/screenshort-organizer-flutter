@@ -249,3 +249,19 @@ class _CircleButton extends StatelessWidget {
     );
   }
 }
+
+/// Opens the details page with a fade, so the image can "fly" (Hero) smoothly
+/// from the tile to the full-screen view. Usable from any screen.
+void openScreenshotDetails(BuildContext context, Map screenshot) {
+  FocusScope.of(context).unfocus();
+  Navigator.of(context).push(
+    PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 350),
+      reverseTransitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          ScreenshotDetailScreen(screenshot: screenshot),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(opacity: animation, child: child),
+    ),
+  );
+}
