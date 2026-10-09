@@ -113,6 +113,93 @@ class PoolService {
   /// 683 screenshots → 18.
   static int chooseK(int n) => math.sqrt(n / 2).round().clamp(4, 20);
 
+  /// The center direction of a group: normalized sum of its members.
+  static List<double> centerOf(List<int> members, List<List<double>> vectors) {
+    final sum = List<double>.filled(vectors.first.length, 0.0);
+    for (final i in members) {
+      VectorMath.addInto(sum, vectors[i]);
+    }
+    return VectorMath.normalize(sum);
+  }
+
+  /// How tight a group is: average similarity of its members to the center.
+  /// Near 1.0 = almost identical screenshots; lower = a looser mix.
+  static double tightness(List<int> members, List<List<double>> vectors) {
+    final center = centerOf(members, vectors);
+    var total = 0.0;
+    for (final i in members) {
+      total += VectorMath.dot(vectors[i], center);
+    }
+    return total / members.length;
+  }
+
+  /// Bisecting k-means: keeps splitting loose groups in two (k-means with
+  /// k = 2) until every group is tight enough or too small to split.
+  /// Returns the result in the same shape as [kMeans], so [buildPools]
+  /// works unchanged.
+  static KMeansResult splitLooseGroups(
+    List<List<double>> vectors,
+    KMeansResult start, {
+    double minTightness = 0.82,
+    int minSize = 9,
+  }) {
+    // Turn the starting clusters into lists of member indexes
+    final queue = <List<int>>[
+      for (var c = 0; c < start.centers.length; c++)
+        [
+          for (var i = 0; i < vectors.length; i++)
+            if (start.assignments[i] == c) i,
+        ],
+    ]..removeWhere((g) => g.isEmpty);
+
+    final done = <List<int>>[];
+    while (queue.isNotEmpty) {
+      final group = queue.removeLast();
+
+      // Tight enough, or too small to split into two real pools? Keep it.
+      if (group.length < 2 * minSize ||
+          tightness(group, vectors) >= minTightness) {
+        done.add(group);
+        continue;
+      }
+
+      // Split in two with k-means (k = 2) on just this group's vectors
+      final sub = kMeans([for (final i in group) vectors[i]], 2);
+      final a = <int>[];
+      final b = <int>[];
+      for (var j = 0; j < group.length; j++) {
+        (sub.assignments[j] == 0 ? a : b).add(group[j]);
+      }
+
+      if (a.isEmpty || b.isEmpty) {
+        done.add(group); // couldn't split it; keep as is
+      } else {
+        queue
+          ..add(a)
+          ..add(b); // check both halves again
+      }
+    }
+
+    // Back to the KMeansResult shape: an assignment per vector + centers
+    final assignments = List<int>.filled(vectors.length, -1);
+    for (var g = 0; g < done.length; g++) {
+      for (final i in done[g]) {
+        assignments[i] = g;
+      }
+    }
+    return KMeansResult(assignments, [
+      for (final g in done) centerOf(g, vectors),
+    ], start.iterations);
+  }
+
+  /// Full clustering on a background isolate: k-means, then split loose groups.
+  static Future<KMeansResult> clusterInBackground(
+    List<List<double>> vectors,
+    int k,
+  ) {
+    return Isolate.run(() => splitLooseGroups(vectors, kMeans(vectors, k)));
+  }
+
   /// Turns k-means output into pools, biggest first.
   /// [ids] and [vectors] must be in the same order that was clustered.
   /// Clusters smaller than [minSize] are collected into one "Other" pool.
@@ -120,7 +207,7 @@ class PoolService {
     List<int> ids,
     List<List<double>> vectors,
     KMeansResult result, {
-    int minSize = 3,
+    int minSize = 9,
   }) {
     final groups = <(List<int>, List<double>)>[]; // (member indexes, center)
     final other = <int>[];
@@ -184,4 +271,12 @@ class Pool {
 
   /// The most typical screenshot represents the pool.
   int get coverId => memberIds.first;
+
+  /// A copy of this pool with a different name.
+  Pool withName(String newName) => Pool(
+    name: newName,
+    memberIds: memberIds,
+    memberScores: memberScores,
+    center: center,
+  );
 }

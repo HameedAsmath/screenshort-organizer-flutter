@@ -4,6 +4,7 @@ import 'services/database_service.dart';
 import 'services/embedding_service.dart';
 import 'services/screenshot_importer.dart';
 
+import 'services/pool_namer.dart';
 import 'services/pool_service.dart';
 import 'services/vector_math.dart';
 
@@ -61,24 +62,28 @@ final poolsProvider = FutureProvider<List<Pool>>((ref) async {
   final all = await DatabaseService().getAllEmbeddings();
   final ids = [for (final e in all) e.$1];
   final vectors = [for (final e in all) VectorMath.normalize(e.$3)];
+  final nameById = {for (final e in all) e.$1: e.$2};
 
   final sw = Stopwatch()..start();
   final k = PoolService.chooseK(vectors.length);
-  final result = await PoolService.kMeansInBackground(vectors, k);
-  final pools = PoolService.buildPools(ids, vectors, result);
+  final result = await PoolService.clusterInBackground(vectors, k);
+  final clustered = PoolService.buildPools(ids, vectors, result);
+  final pools = await PoolNamer.nameAll(clustered, nameById);
   print(
     '🧩 ${pools.length} pools ready in ${sw.elapsedMilliseconds} ms (k=$k)',
   );
 
   // TEMPORARY: list them so we can check the result
-  final nameById = {for (final e in all) e.$1: e.$2};
   for (final p in pools) {
     final examples = p.memberIds
         .take(3)
         .map((id) => nameById[id])
         .join('  ·  ');
+    final avg = p.memberScores.isEmpty
+        ? '  -  '
+        : (p.memberScores.reduce((a, b) => a + b) / p.size).toStringAsFixed(2);
     print(
-      '🧩 ${p.name.padRight(8)} ${p.size.toString().padLeft(3)} │ $examples',
+      '🧩 ${p.name.padRight(32)} ${p.size.toString().padLeft(3)}  tight $avg │ $examples',
     );
   }
 
