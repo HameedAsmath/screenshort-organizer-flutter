@@ -1,4 +1,4 @@
-package com.example.screenshot_organizer_mobile
+package com.hameed.shotnest
 
 import io.flutter.embedding.android.FlutterActivity
 
