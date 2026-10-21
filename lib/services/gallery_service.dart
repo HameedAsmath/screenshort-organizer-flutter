@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 class GalleryService {
@@ -11,7 +12,7 @@ class GalleryService {
         ),
       ),
     );
-    print('📷 Gallery permission: $state');
+    debugPrint('📷 Gallery permission: $state');
     return state.hasAccess;
   }
 
@@ -40,13 +41,13 @@ class GalleryService {
   static Future<List<AssetEntity>> getAllScreenshots() async {
     final album = await findScreenshotsAlbum();
     if (album == null) {
-      print('❌ Screenshots album not found');
+      debugPrint('❌ Screenshots album not found');
       return [];
     }
 
     final count = await album.assetCountAsync;
     final assets = await album.getAssetListRange(start: 0, end: count);
-    print('📸 Found ${assets.length} screenshots');
+    debugPrint('📸 Found ${assets.length} screenshots');
 
     return assets;
   }

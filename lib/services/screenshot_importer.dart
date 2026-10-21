@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'database_service.dart';
 import 'embedding_service.dart';
 import 'gallery_service.dart';
@@ -17,7 +19,7 @@ class ScreenshotImporter {
 
     var todo = assets.where((a) => !indexed.contains(a.id)).toList();
     if (limit != null) todo = todo.take(limit).toList();
-    print('📥 ${todo.length} new screenshots to index');
+    debugPrint('📥 ${todo.length} new screenshots to index');
     final stopwatch = Stopwatch()..start();
     for (var i = 0; i < todo.length; i++) {
       final asset = todo[i];
@@ -43,6 +45,6 @@ class ScreenshotImporter {
     }
 
     final seconds = stopwatch.elapsed.inSeconds;
-    print('✅ Import finished: ${todo.length} screenshots in ${seconds}s');
+    debugPrint('✅ Import finished: ${todo.length} screenshots in ${seconds}s');
   }
 }

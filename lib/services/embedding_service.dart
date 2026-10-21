@@ -1,8 +1,8 @@
-import 'dart:typed_data';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:image/image.dart' as img;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:onnxruntime/onnxruntime.dart';
 
@@ -29,7 +29,7 @@ class EmbeddingService {
     if (_initialized) return;
 
     try {
-      print('🔄 Loading CLIP models...');
+      debugPrint('🔄 Loading CLIP models...');
 
       OrtEnv.instance.init();
       final options = OrtSessionOptions();
@@ -40,9 +40,9 @@ class EmbeddingService {
         imageModel.buffer.asUint8List(),
         options,
       );
-      print('✅ Image model loaded');
-      print('   image inputs: ${_imageSession.inputNames}');
-      print('   image outputs: ${_imageSession.outputNames}');
+      debugPrint('✅ Image model loaded');
+      debugPrint('   image inputs: ${_imageSession.inputNames}');
+      debugPrint('   image outputs: ${_imageSession.outputNames}');
 
       // Load text encoder
       final textModel = await rootBundle.load('assets/clip_text.onnx');
@@ -50,16 +50,16 @@ class EmbeddingService {
         textModel.buffer.asUint8List(),
         options,
       );
-      print('✅ Text model loaded');
-      print('   text inputs: ${_textSession.inputNames}');
-      print('   text outputs: ${_textSession.outputNames}');
+      debugPrint('✅ Text model loaded');
+      debugPrint('   text inputs: ${_textSession.inputNames}');
+      debugPrint('   text outputs: ${_textSession.outputNames}');
 
       _tokenizer = await ClipTokenizer.load();
-      print('✅ Tokenizer loaded');
+      debugPrint('✅ Tokenizer loaded');
 
       _initialized = true;
     } catch (e) {
-      print('❌ Error loading models: $e');
+      debugPrint('❌ Error loading models: $e');
       _initFuture = null;
       rethrow;
     }
@@ -89,10 +89,10 @@ class EmbeddingService {
         inputTensor,
         background: background,
       );
-      print('✅ Image embedding generated (dim: ${embedding.length})');
+      debugPrint('✅ Image embedding generated (dim: ${embedding.length})');
       return embedding;
     } catch (e) {
-      print('Error generating image embedding: $e');
+      debugPrint('Error generating image embedding: $e');
       return [];
     }
   }
@@ -103,17 +103,17 @@ class EmbeddingService {
       if (!_initialized) await initialize();
 
       final ids = _tokenizer.encode(text);
-      print('   tokens: ${ids.takeWhile((id) => id != 0).toList()}');
+      debugPrint('   tokens: ${ids.takeWhile((id) => id != 0).toList()}');
 
       final inputTensor = OrtValueTensor.createTensorWithDataList(
         Int64List.fromList(ids),
         [1, 77],
       );
       final embedding = await _run(_textSession, 'input_ids', inputTensor);
-      print('✅ Text embedding generated for: "$text"');
+      debugPrint('✅ Text embedding generated for: "$text"');
       return embedding;
     } catch (e) {
-      print('Error generating text embedding: $e');
+      debugPrint('Error generating text embedding: $e');
       return [];
     }
   }

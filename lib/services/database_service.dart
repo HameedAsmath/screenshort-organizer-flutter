@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -30,7 +31,7 @@ class DatabaseService {
         onUpgrade: _onUpgrade,
       );
     } catch (e) {
-      print('Database error: $e');
+      debugPrint('Database error: $e');
       rethrow;
     }
   }
@@ -58,7 +59,7 @@ class DatabaseService {
       try {
         await db.execute('ALTER TABLE screenshots ADD COLUMN imagePath TEXT');
       } catch (e) {
-        print('Column already exists: $e');
+        debugPrint('Column already exists: $e');
       }
     }
 
@@ -67,7 +68,7 @@ class DatabaseService {
       try {
         await db.execute('ALTER TABLE screenshots ADD COLUMN embedding TEXT');
       } catch (e) {
-        print('Column already exists: $e');
+        debugPrint('Column already exists: $e');
       }
     }
 
@@ -81,7 +82,7 @@ class DatabaseService {
       await db.execute(
         'CREATE UNIQUE INDEX IF NOT EXISTS idx_screenshots_assetId ON screenshots(assetId)',
       );
-      print('🗄️ Database upgraded to v5 (added assetId)');
+      debugPrint('🗄️ Database upgraded to v5 (added assetId)');
     }
   }
 
@@ -149,7 +150,7 @@ class DatabaseService {
         whereArgs: [row['id']],
       );
     }
-    if (rows.isNotEmpty) print('Reindexed ${rows.length} screenshots');
+    if (rows.isNotEmpty) debugPrint('Reindexed ${rows.length} screenshots');
   }
 
   /// Used for clustering screenshots into pools.
@@ -203,7 +204,7 @@ class DatabaseService {
 
     for (final r in top) {
       final hidden = r.$2 < minScore ? '  (hidden)' : '';
-      print('   ${r.$2.toStringAsFixed(3)}  ${r.$1['name']}$hidden');
+      debugPrint('   ${r.$2.toStringAsFixed(3)}  ${r.$1['name']}$hidden');
     }
 
     return top

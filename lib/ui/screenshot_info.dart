@@ -37,8 +37,18 @@ class ScreenshotInfo {
     final d = takenAt;
     if (d == null) return 'Unknown date';
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final date = '${d.day} ${months[d.month - 1]} ${d.year}';
     if (!isScreenshot) return date;

@@ -74,9 +74,7 @@ class _ProgressCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            fraction == null
-                ? 'Loading the on-device AI model…'
-                : 'Making them searchable. This only happens once per screenshot.',
+            fraction == null ? 'Loading the on-device AI model…' : 'Making them searchable. This only happens once per screenshot.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
               color: scheme.onSurfaceVariant,
@@ -153,9 +151,10 @@ class _PulsingBadgeState extends State<_PulsingBadge>
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return ScaleTransition(
-      scale: Tween(begin: 0.92, end: 1.06).animate(
-        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-      ),
+      scale: Tween(
+        begin: 0.92,
+        end: 1.06,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
       child: Container(
         width: 64,
         height: 64,

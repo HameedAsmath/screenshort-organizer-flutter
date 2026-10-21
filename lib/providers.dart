@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'services/database_service.dart';
@@ -42,7 +43,7 @@ final searchResultsProvider = FutureProvider<List<Map>>((ref) async {
   final query = ref.watch(searchQueryProvider);
   if (query.isEmpty) return [];
 
-  print('Searching for: "$query"');
+  debugPrint('Searching for: "$query"');
   final textEmbedding = await EmbeddingService.generateTextEmbedding(query);
   if (textEmbedding.isEmpty) {
     throw Exception('Could not process search text');
@@ -50,7 +51,7 @@ final searchResultsProvider = FutureProvider<List<Map>>((ref) async {
   final db = DatabaseService();
   final results = await db.searchByEmbedding(textEmbedding);
 
-  print('Found ${results.length} results');
+  debugPrint('Found ${results.length} results');
   return results;
 });
 
@@ -69,23 +70,9 @@ final poolsProvider = FutureProvider<List<Pool>>((ref) async {
   final result = await PoolService.clusterInBackground(vectors, k);
   final clustered = PoolService.buildPools(ids, vectors, result);
   final pools = await PoolNamer.nameAll(clustered, nameById);
-  print(
+  debugPrint(
     '🧩 ${pools.length} pools ready in ${sw.elapsedMilliseconds} ms (k=$k)',
   );
-
-  // TEMPORARY: list them so we can check the result
-  for (final p in pools) {
-    final examples = p.memberIds
-        .take(3)
-        .map((id) => nameById[id])
-        .join('  ·  ');
-    final avg = p.memberScores.isEmpty
-        ? '  -  '
-        : (p.memberScores.reduce((a, b) => a + b) / p.size).toStringAsFixed(2);
-    print(
-      '🧩 ${p.name.padRight(32)} ${p.size.toString().padLeft(3)}  tight $avg │ $examples',
-    );
-  }
 
   return pools;
 });

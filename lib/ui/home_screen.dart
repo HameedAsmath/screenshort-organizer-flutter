@@ -61,12 +61,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _importFromPicker() async {
-    print('Button tapped');
+    debugPrint('Button tapped');
     final files = await PhotoService.pickMultiplePhotos();
-    print('Selected ${files.length} photos');
+    debugPrint('Selected ${files.length} photos');
 
     if (files.isEmpty) {
-      print('No files selected');
+      debugPrint('No files selected');
       return;
     }
 
@@ -75,14 +75,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final db = DatabaseService();
 
       for (var file in files) {
-        print('Processing: ${file.path}');
+        debugPrint('Processing: ${file.path}');
 
         // Generate embedding
-        print('Generating embedding...');
+        debugPrint('Generating embedding...');
         final embedding = await EmbeddingService.generateImageEmbedding(
           file.path,
         );
-        print('Embedding generated (dim: ${embedding.length})');
+        debugPrint('Embedding generated (dim: ${embedding.length})');
 
         final row = <String, dynamic>{
           'name': file.path.split('/').last,
@@ -95,21 +95,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         if (embedding.isEmpty) {
           // Save the photo anyway; reindexMissingEmbeddings() retries it on next launch.
           await db.insertScreenshot(row);
-          print('⚠️ Saved without embedding, will retry on next launch');
+          debugPrint('⚠️ Saved without embedding, will retry on next launch');
         } else {
           await db.insertScreenshotWithEmbedding(row, embedding);
-          print('✅ Saved with embedding');
+          debugPrint('✅ Saved with embedding');
         }
       }
 
       // Reload
       final updated = await db.getAllScreenshots();
-      print('Total screenshots: ${updated.length}');
+      debugPrint('Total screenshots: ${updated.length}');
 
       ref.read(screenshotsProvider.notifier).state = updated;
       _clearSearch();
     } catch (e) {
-      print('Error saving: $e');
+      debugPrint('Error saving: $e');
     } finally {
       if (mounted) setState(() => _importing = false);
     }
