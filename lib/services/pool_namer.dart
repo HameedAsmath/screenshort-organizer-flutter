@@ -63,6 +63,8 @@ class PoolNamer {
     'spreadsheets',
     'presentations',
     'blank black screens',
+    'phone dialpad',
+    'products',
   ];
 
   static List<List<double>>? _labelVectors; // computed once, then reused

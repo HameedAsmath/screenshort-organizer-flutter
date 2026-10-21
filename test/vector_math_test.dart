@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:screenshot_organizer_mobile/services/vector_math.dart';
+import 'package:shotnest/services/vector_math.dart';
 
 void main() {
   test('normalize scales a vector to length 1', () {

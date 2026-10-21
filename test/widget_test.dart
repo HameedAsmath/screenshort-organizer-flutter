@@ -1,30 +1,30 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:screenshot_organizer_mobile/main.dart';
+import 'package:shotnest/ui/screenshot_info.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('reads source app and time from an Android screenshot name', () {
+    final info = ScreenshotInfo.fromRow({
+      'name': 'Screenshot_20260930-122156_GPay.png',
+    });
+    expect(info.sourceApp, 'GPay');
+    expect(info.takenAt, DateTime(2026, 9, 30, 12, 21, 56));
+    expect(info.title, 'GPay');
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('older names use a dot before the app', () {
+    final info = ScreenshotInfo.fromRow({
+      'name': 'Screenshot_20251024-122221.MakeMyTrip.png',
+    });
+    expect(info.sourceApp, 'MakeMyTrip');
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('photos fall back to createdAt', () {
+    final info = ScreenshotInfo.fromRow({
+      'name': '1000146879.jpg',
+      'createdAt': '2026-09-30',
+    });
+    expect(info.sourceApp, isNull);
+    expect(info.title, 'Photo');
+    expect(info.takenAt, DateTime(2026, 9, 30));
   });
 }
